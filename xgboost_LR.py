@@ -79,5 +79,4 @@ def xgboost_lr():
     xgb_lr2_auc = roc_auc_score(y_test, y_xgb_lr2_predict)
     print('基于xgb编码特征和LR组合特征的xgb+lr AUC: %.5f' % xgb_lr2_auc)
 
-
 xgboost_lr()

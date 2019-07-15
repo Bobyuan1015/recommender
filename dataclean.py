@@ -49,6 +49,27 @@ def string_toDatetime(st):
 def string_toTimestamp(st):
     return time.mktime(time.strptime(st, "%Y-%m-%d %H:%M:%S"))
 
+
+def removeTapIn_oneColumn():
+    fp = open('data/news_title_comment_like.txt', 'r')
+    fp1 = open('data/corrct_news_title_comment_like.txt', 'wb')
+    correctLines=[]
+    tmp=['']
+    for i, line in enumerate(fp):
+            num = (len(line) - len(line.replace(':!:',""))) // len(':!:')
+            if num == 10 :
+                print(' write:')
+                fp1.write(bytes(line,'UTF-8'))
+            else:
+                tmp[len(tmp)-1]+=line.strip('\r\n')
+                tempnum = (len(tmp[len(tmp)-1]) - len(tmp[len(tmp)-1].replace(':!:',""))) // len(':!:')
+                if tempnum ==10:
+                    fp1.write(bytes(tmp[len(tmp)-1],'UTF-8'))
+                    tmp.append('')
+                    print("append tempnum=",tempnum,'----len of tmp=',len(tmp[len(tmp)-1]),' index=',len(tmp)-1,' ',tmp[len(tmp)-1])
+    print("converting job is done, you can check the file.")
+
+
 def decode_time(newdf,column):
     if column == 'start_time':
         # for index,_ in enumerate(newdf['start_time']):

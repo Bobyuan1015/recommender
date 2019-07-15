@@ -4,7 +4,9 @@ import pickle
 import pandas as pd
 import numpy as np
 import os
+import math
 from math import exp
+import sys
 
 
 class Corpus:
@@ -61,7 +63,20 @@ class LFM:
         self.iter_count = 5
         self.lr = 0.02
         self.lam = 0.01
+        self.trainset = {}
+        self.testset = {}
+        # 训练集用的相似用户数
+        self.n_sim_user = 20
+        # 推荐资讯数量
+        self.n_rec_article = 10
+        self.user_sim_mat = {}
+        self.article_popular = {}
+        self.article_count = 0
+        print ('相似用户数目为 = %d' % self.n_sim_user, file=sys.stderr)
+        print ('推荐资讯数目为 = %d' %
+               self.n_rec_article, file=sys.stderr)
         self._init_model()
+
 
     def _init_model(self):
         """
@@ -78,7 +93,7 @@ class LFM:
         self.p = pd.DataFrame(array_p, columns=range(0, self.class_count), index=list(self.user_ids))
         self.q = pd.DataFrame(array_q, columns=range(0, self.class_count), index=list(self.item_ids))
 
-    def _predict(self, user_id, item_id):
+    def _recommend(self, user_id, item_id):
         """
         Calculate interest between user_id and item_id.
         p is the look-up-table for user's interest of each class.
@@ -95,7 +110,7 @@ class LFM:
         """
         Loss Function define as MSE, the code write here not that formula you think.
         """
-        e = y - self._predict(user_id, item_id)
+        e = y - self._recommend(user_id, item_id)
         print('Step: {}, user_id: {}, item_id: {}, y: {}, loss: {}'.
               format(step, user_id, item_id, y, e))
         return e
@@ -134,14 +149,14 @@ class LFM:
             self.lr *= 0.9
         self.save()
 
-    def predict(self, user_id, top_n=2):
+    def recommend(self, user_id, top_n=10):
         """
         Calculate all item user have not meet before and return the top n interest items.
         """
         self.load()
         user_item_ids = set(self.frame[self.frame['useridReindex'] == user_id]['newsidReindex'])
         other_item_ids = self.item_ids ^ user_item_ids
-        interest_list = [self._predict(user_id, item_id) for item_id in other_item_ids]
+        interest_list = [self._recommend(user_id, item_id) for item_id in other_item_ids]
         candidates = sorted(zip(list(other_item_ids), interest_list), key=lambda x: x[1], reverse=True)
         return candidates[:top_n]
 
@@ -161,12 +176,91 @@ class LFM:
         self.p, self.q = pickle.load(f)
         f.close()
 
+ # 划分训练集和测试集 pivot用来定义训练集和测试集的比例
+
+# 计算 准确略，召回率，覆盖率，流行度
+    def evaluate(self, pivot=0.7):
+        ''' load rating data and split it to training set and test set '''
+        trainset_len = 0
+        testset_len = 0
+        for i in self.frame.index:
+       
+            user=self.frame.useridReindex[i]
+            article=self.frame.newsidReindex[i]
+            # 随机数字 如果小于0.7 则数据划分为训练集
+            if random.random() < pivot:
+                # 设置训练集字典，key为user,value 为字典 且初始为空
+                self.trainset.setdefault(user, {})
+                # 以下省略格式如下，集同一个用户id 会产生一个字典，且值为他评分过的所有资讯
+                #{'1': {'914': 3, '3408': 4, '150': 5, '1': 5}, '2': {'1357': 5}}
+                self.trainset[user][article] =0# int(rating)
+                trainset_len += 1
+            else:
+                self.testset.setdefault(user, {})
+                self.testset[user][article] = 0#int(rating)
+                testset_len += 1
+        # 输出切分训练集成功
+        print ('划分数据为训练集和测试集成功！', file=sys.stderr)
+        # 输出训练集比例
+        print ('训练集数目 = %s' % trainset_len, file=sys.stderr)
+        # 输出测试集比例
+        print ('测试集数目 = %s' % testset_len, file=sys.stderr)
+
+
+
+
+
+        # ''' print evaluation result: precision, recall, coverage and popularity '''
+        print ('Evaluation start...', file=sys.stderr)
+        f = open('cf.model', 'rb')
+        self.user_sim_mat,self.article_popular,self.article_count = pickle.load(f)
+        f.close()
+
+        N = self.n_rec_article
+        #  varables for precision and recall
+        #记录推荐正确的资讯数
+
+        hit = 0
+        #记录推荐资讯的总数
+        rec_count = 0
+        #记录测试数据中总数
+        test_count = 0
+        # varables for coverage
+        all_rec_articles = set()
+        # varables for popularity
+        popular_sum = 0
+
+        for ii, user1 in enumerate(self.trainset):
+            if i % 500 == 0:
+                print ('recommended for %d users' % ii, file=sys.stderr)
+            test_articles = self.testset.get(user1, {})
+            rec_articles = self.recommend(user1)
+            for article1, _ in rec_articles:
+                if article1 in test_articles:
+                    hit += 1
+                all_rec_articles.add(article1)
+                # popular_sum += math.log(1 + self.article_popular[article1])
+            rec_count += N
+            test_count += len(test_articles)
+        # 计算准确度
+        precision = hit / (1.0 * rec_count)
+        # 计算召回率
+        recall = hit / (1.0 * test_count)
+        # 计算覆盖率
+        coverage = len(all_rec_articles) / (1.0 * self.article_count)
+        #计算流行度
+        # popularity = popular_sum / (1.0 * rec_count)
+
+        print ('precision=%.4f\trecall=%.4f\tcoverage=%.4f\t' %
+               (precision, recall, coverage), file=sys.stderr)
 
 if __name__=='__main__':
     if not os.path.exists('lfm_items.dict'):
         Corpus.pre_process()
     if not os.path.exists('lfm.model'):
         LFM().train()
-    movies=LFM().predict(82,2)
-    for movie in movies:
-        print(movie)
+    # movies=LFM().recommend(82,2)
+    # for movie in movies:
+    #     print(movie)
+    LFM().evaluate()
+
