@@ -10,12 +10,55 @@ import datetime
 from sklearn.utils import shuffle
 import os
 
+def removeTapIn_oneColumn(columns,filename):
+    fp = open(filename, 'r')
+    paths=filename.split('/')
+    path=''.join(paths[:-1])
+    old_name=''.join(paths[-1:])
+    fp1=open(path+'/mid-'+old_name,'wb')
+    dilimeterNumbers=len(columns)-1
+    tmp=['']
+    for i, line in enumerate(fp):
+            num = (len(line) - len(line.replace(':!:',""))) // len(':!:')
+            if num == dilimeterNumbers :
+                # print(' write:')
+                fp1.write(bytes(line,'UTF-8'))
+            else:
+                tmp[len(tmp)-1]+=line.strip('\r\n')
+                tempnum = (len(tmp[len(tmp)-1]) - len(tmp[len(tmp)-1].replace(':!:',""))) // len(':!:')
+                if tempnum ==dilimeterNumbers:
+                    fp1.write(bytes(tmp[len(tmp)-1],'UTF-8'))
+                    tmp.append('')
+                    # print("append tempnum=",tempnum,'----len of tmp=',len(tmp[len(tmp)-1]),' index=',len(tmp)-1,' ',tmp[len(tmp)-1])
+    print("converting job is done, you can check the file.")
+    fp1.close()
+    fp.close()
+
+    f=open(path+'/mid-'+old_name,'r')
+    dfDic={}
+    for i,column in enumerate(columns):
+        dfDic.setdefault(column, [])
+
+    for index, line in enumerate(f):
+        if index!=0:
+            # print("index=",index," line=",line)
+            words= line.split(':!:')
+            for i,column in enumerate(columns):
+                dfDic[column].append(words[i].strip())
+
+    df=pd.DataFrame(dfDic)
+    # df.to_csv('newcorrct_news_title_comment_like.csv',sep=',')
+    df.to_csv(path+'/new-'+old_name.split('.')[0]+'.csv',sep=',')
+    # f=open(path+'/mid'+paths[-2:-1],'r')
+    # df.to_table('test.txt', sep=':!:')
+    df1=pd.read_csv(path+'/new-'+old_name.split('.')[0]+'.csv', sep=',',index_col=0)
+    print(df1.head(15),"  len=",len(df1))
+
 
 #建立单个文件的excel转换成csv函数,file 是excel文件名，to_file 是csv文件名。
 def excel_to_csv(file,to_file):
     data_xls=pd.read_excel(file,sheet_name=0)
     data_xls.to_csv(to_file,encoding='utf_8_sig')
-
 
 
 #读取一个目录里面的所有文件：
@@ -50,24 +93,7 @@ def string_toTimestamp(st):
     return time.mktime(time.strptime(st, "%Y-%m-%d %H:%M:%S"))
 
 
-def removeTapIn_oneColumn():
-    fp = open('data/news_title_comment_like.txt', 'r')
-    fp1 = open('data/corrct_news_title_comment_like.txt', 'wb')
-    correctLines=[]
-    tmp=['']
-    for i, line in enumerate(fp):
-            num = (len(line) - len(line.replace(':!:',""))) // len(':!:')
-            if num == 10 :
-                print(' write:')
-                fp1.write(bytes(line,'UTF-8'))
-            else:
-                tmp[len(tmp)-1]+=line.strip('\r\n')
-                tempnum = (len(tmp[len(tmp)-1]) - len(tmp[len(tmp)-1].replace(':!:',""))) // len(':!:')
-                if tempnum ==10:
-                    fp1.write(bytes(tmp[len(tmp)-1],'UTF-8'))
-                    tmp.append('')
-                    print("append tempnum=",tempnum,'----len of tmp=',len(tmp[len(tmp)-1]),' index=',len(tmp)-1,' ',tmp[len(tmp)-1])
-    print("converting job is done, you can check the file.")
+
 
 
 def decode_time(newdf,column):
@@ -322,8 +348,6 @@ def buildTrainingData():
     print("newtable  ",dfnews.columns, "table len=",len(dfnews),"news number=",len(dfnews.newsid.unique()))
     print('----------'*10)
 
-
-
     merge1=pd.merge(dfclick,dfuser,on='userid',how='inner')
     print("merged1 ",merge1.columns, "table len=",len(merge1),"userid number=",len(merge1.userid.unique()))
     print('----------'*10)
@@ -335,9 +359,7 @@ def buildTrainingData():
     merge2.to_csv('postive_data.csv')
     length=len(merge2)
 
-    merge2['useridReindex']=category_to_number_onNewColumn(merge2.userid,'userid')
-    merge2['newsidReindex']=category_to_number_onNewColumn(merge2.newsid,'newsid')
-    merge2.to_csv('lfm_postive_data.csv')
+
 
 
     negative_articles=set(dfnews['newsid'].to_list())^set(dfclick['newsid'].tolist())
@@ -363,6 +385,11 @@ def buildTrainingData():
     trainingdf.to_csv('traningset.csv')
 
 
+    merge2['useridReindex']=category_to_number_onNewColumn(merge2.userid,'userid')
+    merge2['newsidReindex']=category_to_number_onNewColumn(merge2.newsid,'newsid')
+    merge2.to_csv('lfm_postive_data.csv')
+
+
 def main():
     pd.set_option('display.width',None)#dataframe can print full columns
 
@@ -370,7 +397,9 @@ def main():
     # playNewsTable()
     # playTopicNewsTable()
     # playViewedNewsTable()
-    buildTrainingData()
-
+    # buildTrainingData()
+    removeTapIn_oneColumn(['id', 'news_title', 'news_subtitle', 'news_detail', 'liked_num',
+           'clap_num', 'recommend_flag', 'comment_num', 'read_num', 'follow_num',
+           'share_num'],'data/news_title_comment_like.txt',)
 if __name__ == '__main__':
     main()

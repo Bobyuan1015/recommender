@@ -9,6 +9,9 @@ from sklearn.metrics.ranking import roc_auc_score
 from sklearn.preprocessing.data import OneHotEncoder
 from scipy.sparse.construct import hstack
 from xgboost import XGBClassifier
+# from sklearn.linear_model import LogisticRegression  # Logistic 回归模型 包
+from sklearn.linear_model import LogisticRegressionCV # 带有正则化参数C的粒度
+from sklearn.model_selection import cross_val_score # 交叉验证
 
 
 def xgboost_lr():
@@ -45,11 +48,26 @@ def xgboost_lr():
     print('xgboost test auc: %.5f' % xgb_test_auc)
 
     # lr
-    lr= LogisticRegression(C=1.0,penalty='l2')
+    lr= LogisticRegression(C=1.0,penalty='l2')#用参数指定网格搜索对模型的正则化参数C的粒度
     lr.fit(x_train, y_train)  # 预测及AUC评测
     y_test_predict = lr.predict_proba(x_test)[:, 1]
     lr_test_auc = roc_auc_score(y_test, y_test_predict)
     print('基于原有特征的LR AUC: %.5f' % lr_test_auc)
+
+
+
+    # mode= LogisticRegression(C=1.0,penalty='l2')
+    # scores = cross_val_score(mode, x_train, y_train, cv = 4,scoring='roc_auc') # 做四次交叉验证
+    # y_test_predict = mode.predict_proba(x_test)[:, 1]
+    # lr_test_auc = roc_auc_score(y_test, y_test_predict)
+    # print('交叉验证4fold 基于原有特征的LR AUC: %.5f' % lr_test_auc)
+ # logisticregressioncv 类用参数指定网格搜索对模型的正则化参数C的粒度
+    model_cv = LogisticRegressionCV(10)
+    model_cv.fit(x_train, y_train)
+    y_test_predict = model_cv.predict_proba(x_test)[:, 1]
+    lr_test_auc = roc_auc_score(y_test, y_test_predict)
+    print('基于原有特征的LR AUC: %.5f' % lr_test_auc)
+
 
     # xgb编码特征,特征转换,在训练得到34棵树之后，我们需要得到的不是GBDT的预测结果，而是每一条训练数据落在了每棵树的哪个叶子结点上
     x_train_leaves = xgb_model.apply(x_train)
