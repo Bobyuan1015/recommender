@@ -18,20 +18,28 @@ import linecache
 
 
 def decompose_time(name,newdf):
-
+    previous_time= time.time()
     toReplace1=newdf[name][newdf[name].isnull()].index.to_list()
     datetimeList=[]
+    print("decompose time index.to_list() cost",time.time()-previous_time)
+    previous_time= time.time()
     for index1, flag1 in enumerate(newdf[name].tolist()):
-        print("index=",index1," content:",flag1)
-        if flag1 == '\\N' or isinstance(flag1,float):
+        # print("index=",index1," content:",flag1)
+        if flag1 == '0' or isinstance(flag1,float):
             toReplace1.append(index1)
         else:
             if isinstance(newdf[name][index1],str) !=True:
                 print(newdf[name][index1])
             newdf[name][index1]=string_toDatetime(newdf[name][index1])
             datetimeList.append(newdf[name][index1])
+    print("decompose time replacement cost",time.time()-previous_time)
+    previous_time= time.time()
+    minCost=datetimeList[0]
+    # minCost=min(datetimeList)
     for index in toReplace1:
-        newdf[name][index]=min(datetimeList)
+        newdf[name][index]=minCost
+    print("decompose time min() cost",time.time()-previous_time)
+    previous_time= time.time()
     # for index,_ in enumerate(newdf['end_time']):
     #     print("end_time",type(newdf.start_time[index])," replaced ",newdf.start_time[index])
 
@@ -41,12 +49,15 @@ def decompose_time(name,newdf):
     newdf[name+'_month']=dates.dt.month
     newdf[name+'_week']=dates.dt.week
     newdf[name+'_day']=dates.dt.day
-    newdf[name+'_time']=newdf[name].apply(lambda x: x.strftime("%Y-%m-%d %H:%M:%S"))
-    newdf[name+'_timestamp'] = newdf[name].apply(lambda x:time.mktime(time.strptime(x,"%Y-%m-%d %H:%M:%S")))
+    newdf[name+'_timestamp'] = newdf[name].apply(lambda x:string_toTimestamp(datetime_toString(x)))
+    print("decompose time  year month day week cost",time.time()-previous_time)
+    previous_time= time.time()
     # print("replaced: ",newdf['end_time_timestamp'])
     def minMaxNormalization(x):
         return DataFrame({"updated_timestamp":np.rint([1000*(float(i)-min(x))/float(max(x)-min(x)) for i in x])})
     newdf[name+'_timestamp']=minMaxNormalization(newdf[name+'_timestamp'])
+    print("decompose time  minMaxNormalization cost",time.time()-previous_time)
+
     return newdf
 
 def justSaveNewsDetail():
@@ -181,18 +192,24 @@ def cleanData():
     #     print("save pt20190717-",table," successfully  cost",time.time()-pre_time)
 
 #--------------cleaning account table
+    taccount=time.time()
     accountdf=pd.read_csv('ods/pt20190717ods_app_ai_aiid_account_all_dt.csv')#v,index_col=0不能制定index，否这无法增加列
+
     accountdf.dropna(axis=0,subset = ["id"])   # 丢弃‘userid’这两列中有缺失值的行
-    print(accountdf.columns)
-    print(accountdf.describe())
-    print(accountdf.isnull().any()) #which column is null
+    # print(accountdf.columns)
+    # print(accountdf.describe())
+    # print(accountdf.isnull().any()) #which column is null
     accountdf['nickname'][accountdf['nickname'].isnull()]=0
     accountdf['nickname'][accountdf['nickname'].isnull()!=True]=1
     accountdf['name'][accountdf['name'].isnull()!=True]=1
     accountdf['name'][accountdf['name'].isnull()]=0
     accountdf['sex'][accountdf['sex'].isnull()!=True]=1
     accountdf['sex'][accountdf['sex'].isnull()]=0
-    accountdf=decompose_time('reg_time',accountdf)
+#   accountdf['reg_time'][accountdf['reg_time'].isnull()]='0'
+    # t=time.time()
+    # accountdf=decompose_time('reg_time',accountdf)
+    pre=time.time()
+    # print('accout decompose_time cost:',pre-t)
     accountdf['id_card'][accountdf['id_card'].isnull()!=True]=1
     accountdf['id_card'][accountdf['id_card'].isnull()]=0
     accountdf['head_url'][accountdf['head_url'].isnull()!=True]=1
@@ -200,8 +217,14 @@ def cleanData():
     accountdf['owner_type'][accountdf['owner_type'].isnull()!=True]=1
     accountdf['owner_type'][accountdf['owner_type'].isnull()]=0
     accountdf['age']=birthday_to_age(accountdf['birthday'])
+
+    print('accout birthday_to_age cost:',time.time()-pre)
+    pre=time.time()
     accountdf['region'][accountdf['region'].isnull()]='0'
     accountdf['region']=category_to_number(accountdf.region.values,'region')
+
+    print('accout category_to_number cost:',time.time()-pre)
+    pre=time.time()
     def p(x):
         print("column:",x)
         print("is not null: ",accountdf[x][accountdf[x].isnull()!=True].to_list())
@@ -228,12 +251,21 @@ def cleanData():
     accountdf['agreement_version'][accountdf['agreement_version'].isnull()]=0
     accountdf['big_region'][accountdf['big_region'].isnull()!=True]=1
     accountdf['big_region'][accountdf['big_region'].isnull()]=0
+
+    print('accout others cost:',time.time()-pre)
+    pre=time.time()
     # p('big_region')# value is empty
-    towrite=accountdf.loc[:,['id','nickname','name','sex','reg_time_year','reg_time_month','reg_time_week','reg_time_day',
-                     'reg_time_timestamp','id_card','head_url','owner_type','age','region','integral','is_big_v',
+    # towrite=accountdf.loc[:,['id','nickname','name','sex','reg_time_year','reg_time_month','reg_time_week','reg_time_day',
+    #                  'reg_time_timestamp','id_card','head_url','owner_type','age','region','integral','is_big_v',
+    #                  'is_first_login','autograph','user_type','event','agreement_version','big_region']]
+    towrite=accountdf.loc[:,['id','nickname','name','sex','id_card','head_url','owner_type','age','region','integral','is_big_v',
                      'is_first_login','autograph','user_type','event','agreement_version','big_region']]
 
+    # print('accout loc cost:',time.time()-pre)
     towrite.dropna(axis=0, how='any', inplace=True)
+    print('accout drop cost:',time.time()-pre)
+    pre=time.time()
+    print('account table cost in total:',pre-taccount)
     towrite.to_csv("ods/clean_sql_account.csv")
 # accountdf['d_type'][accountdf['d_type'].isnull()]=0
     # accountdf['d_type'][accountdf['d_type'].isnull()!=True]=1
@@ -270,23 +302,33 @@ def cleanData():
 #        'recommend_flag', 'sort_no', 'publish_flag', 'news_detail',
 #        'comment_num', 'read_num', 'news_type', 'follow_num', 'share_num',
 #        'status', 'author', 'publish_time', 'video_url', 'pt'
+
+    newstable=time.time()
     newdf=pd.read_csv('ods/pt20190717ods_app_ai_content_content_news_all_dt.csv')#v,index_col=0不能制定index，否这无法增加列
     newdf.dropna(axis=0,subset = ["id"])   # 丢弃‘userid’这两列中有缺失值的行
-    print(accountdf.columns)
-    print(accountdf.describe())
-    print(accountdf.isnull().any()) #which column is null
+
+    print('news loc cost:',time.time()-pre)
+    pre=time.time()
+    # print(accountdf.columns)
+    # print(accountdf.describe())
+    # print(accountdf.isnull().any()) #which column is null
 
     count=newdf['id'].value_counts()
-    if count.values.sum() == len(count):
-        print("No duplicated data in the frame， length=",len(count))
-    else:
-        print("you need to go back for cleaning data ")
-    print(newdf.isnull().any()) #which column is null
-    print(newdf.isnull().any()) #which column is null
+    # if count.values.sum() == len(count):
+    #     print("No duplicated data in the frame， length=",len(count))
+    # else:
+    #     print("you need to go back for cleaning data ")
+    print(newdf.isnull().any()) #which column is null    
     newdf['creator_id'].fillna(0,inplace=True)
-    newdf = decompose_time('updated_time',newdf)
+    # newdf['updated_time'][newdf['updated_time'].isnull()]='0'
+    # newdf = decompose_time('updated_time',newdf)
+    # print('news decompose_time cost:',time.time()-pre)
+    pre=time.time()
     newdf['news_title']=newdf['news_title'].apply(lambda x:1 if isinstance(x,str) else 0)
     newdf['news_subtitle']=newdf['news_subtitle'].apply(lambda x:1 if isinstance(x,str) else 0)
+
+    print('news news_title news_subtitle cost:',time.time()-pre)
+    pre=time.time()
     # print(newdf.isnull().any()) #判断那一列有空
     def removeItems():
         flags =newdf['delete_flag'].tolist()
@@ -301,19 +343,58 @@ def cleanData():
             if flag1 == 0:
                 # print("unpublish index=",index1)
                 removeIndexs.append(index1)
-        print("remove news:",removeIndexs[:-1])
+        # print("remove news:",removeIndexs[:-1])
         newdf.drop(newdf.index[removeIndexs],inplace=True)
 
     removeItems()
 
-    newdf['newsid']=newdf['id']
-    df_toWrite=newdf.loc[:,['creator_id','news_title','news_subtitle',
-                            'updated_year','updated_month','updated_day',
-                            'updated_timestamp','newsid']]
-    df_toWrite.dropna(axis=0, how='any', inplace=True)
-    df_toWrite.to_csv("ods/clean_sql_account.csv")
+    print('news removeItems cost:',time.time()-pre)
+    pre=time.time()
+#     newdf['newsid']=newdf['id']
+    # df_toWrite=newdf.loc[:,['creator_id','news_title','news_subtitle',
+    #                         'updated_year','updated_month','updated_day',
+    #                         'updated_timestamp','newsid']]
+    df_toWrite1=newdf.loc[:,['id','creator_id','news_title','news_subtitle']]
+    print('news loc cost:',time.time()-pre)
+    pre=time.time()
+    df_toWrite1.dropna(axis=0, how='any', inplace=True)
+    print('news dropna cost:',time.time()-pre)
+    pre=time.time()
+    df_toWrite1.to_csv("ods/clean_sql_news.csv")
+    print('news to_csv cost:',time.time()-pre)
+    pre=time.time()
+    print('news table cost in total:',pre-newstable)
+# --------------cleaning click table
+    clicktable=time.time()
+    clickdf=pd.read_csv('ods/dwd_user_app_browse_action_detail_cdc_dt.csv')#v,index_col=0不能制定index，否这无法增加列    
+    clickdf.drop(clickdf['article_id'][clickdf['article_id'].isnull()].index.to_list(), inplace=True)
+    clickdf.drop(clickdf['user_id'][clickdf['user_id'].isnull()].index.to_list(), inplace=True)    
+    print()
+    def remove_useless():
+        flags =clickdf['user_id'].tolist()
+        removeIndexs=[]
+        for index, flag in enumerate(flags):
+            if flag == 'unlogin':
+                removeIndexs.append(index)
 
-#--------------cleaning news table
+        flags1 =clickdf['article_id'].tolist()
+        for index1, flag1 in enumerate(flags1):
+            if flag1 == '\\N':
+                removeIndexs.append(index1)
+        clickdf.drop(clickdf.index[removeIndexs],inplace=True)
+
+        # print(removeIndexs[:20],len(newdf.user_id.unique()))
+
+    remove_useless()
+    df_toWrite=clickdf.loc[:,['user_id','article_id']]
+    df_toWrite.dropna(axis=0, how='any', inplace=True)
+    df_toWrite.to_csv("ods/clean_sql_clicked.csv")
+    print('news loc cost:',time.time()-clicktable)
+    pre=time.time()
+    print(clickdf.columns)
+    print(clickdf.describe())
+    print(clickdf.isnull().any()) #which column is null
+    
 
 
 
@@ -534,7 +615,7 @@ def playNewsTable():
             if flag1 == 0:
                 # print("unpublish index=",index1)
                 removeIndexs.append(index1)
-        print("remove news:",removeIndexs[:-1])
+        # print("remove news:",removeIndexs[:-1])
         newdf.drop(newdf.index[removeIndexs],inplace=True)
 
     removeItems()
@@ -674,22 +755,3 @@ def buildTrainingData():
     merge2.to_csv('lfm_postive_data.csv')
 
 
-def main():
-    pd.set_option('display.width',None)#dataframe can print full columns
-
-    # playAccountTable()
-    # playNewsTable()
-    # playTopicNewsTable()
-    # playViewedNewsTable()
-    # buildTrainingData()
-
-    # removeTapIn_oneColumn(['id', 'news_title', 'news_subtitle', 'news_detail', 'liked_num',
-    #        'clap_num', 'recommend_flag', 'comment_num', 'read_num', 'follow_num',
-    #        'share_num'],'data/news_title_comment_like.txt',)
-    # file= removeTapIn_oneColumn('data/temp_user_news.txt')
-    cleanData()
-    # justSaveNewsDetail()
-
-
-if __name__ == '__main__':
-    main()
