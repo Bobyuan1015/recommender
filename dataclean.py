@@ -9,16 +9,71 @@ import time
 import datetime
 from sklearn.utils import shuffle
 import os
+import datetime as dt
+import math
 
-def removeTapIn_oneColumn(columns,filename):
+from odps import ODPS
+
+import linecache
+
+
+def decompose_time(name,newdf):
+
+    toReplace1=newdf[name][newdf[name].isnull()].index.to_list()
+    datetimeList=[]
+    for index1, flag1 in enumerate(newdf[name].tolist()):
+        print("index=",index1," content:",flag1)
+        if flag1 == '\\N' or isinstance(flag1,float):
+            toReplace1.append(index1)
+        else:
+            if isinstance(newdf[name][index1],str) !=True:
+                print(newdf[name][index1])
+            newdf[name][index1]=string_toDatetime(newdf[name][index1])
+            datetimeList.append(newdf[name][index1])
+    for index in toReplace1:
+        newdf[name][index]=min(datetimeList)
+    # for index,_ in enumerate(newdf['end_time']):
+    #     print("end_time",type(newdf.start_time[index])," replaced ",newdf.start_time[index])
+
+    # print(" length of null starttime is :",len(newdf.start_time[newdf['start_time'].isna() != False]))
+    dates = pd.to_datetime(newdf[name], format="%Y-%m-%d %H:%M:%S")
+    newdf[name+'_year']=dates.dt.year
+    newdf[name+'_month']=dates.dt.month
+    newdf[name+'_week']=dates.dt.week
+    newdf[name+'_day']=dates.dt.day
+    newdf[name+'_time']=newdf[name].apply(lambda x: x.strftime("%Y-%m-%d %H:%M:%S"))
+    newdf[name+'_timestamp'] = newdf[name].apply(lambda x:time.mktime(time.strptime(x,"%Y-%m-%d %H:%M:%S")))
+    # print("replaced: ",newdf['end_time_timestamp'])
+    def minMaxNormalization(x):
+        return DataFrame({"updated_timestamp":np.rint([1000*(float(i)-min(x))/float(max(x)-min(x)) for i in x])})
+    newdf[name+'_timestamp']=minMaxNormalization(newdf[name+'_timestamp'])
+    return newdf
+
+def justSaveNewsDetail():
+    print('just save news content into a file')
+    df=pd.read_csv('data/new-temp_user_news.csv',index_col=0)
+    print(df.columns)
+    print(df['news_detail'][df['news_detail'].isnull()].index.to_list())
+    # df_toWrite=df.loc[:,['news_id','news_title', 'news_subtitle', 'news_detail']]
+    # print(df_toWrite.columns)
+    # df_toWrite.to_csv('news.csv')
+    # df=pd.read_csv('news.csv',index_col=0)
+    # print(df.columns)
+
+
+def removeTapIn_oneColumn(filename):
+    linecache.clearcache()
     fp = open(filename, 'r')
     paths=filename.split('/')
     path=''.join(paths[:-1])
     old_name=''.join(paths[-1:])
     fp1=open(path+'/mid-'+old_name,'wb')
+    columns=linecache.getline(filename, 1).strip().split(':!:')
+    print( columns)
     dilimeterNumbers=len(columns)-1
     tmp=['']
     for i, line in enumerate(fp):
+
             num = (len(line) - len(line.replace(':!:',""))) // len(':!:')
             if num == dilimeterNumbers :
                 # print(' write:')
@@ -53,6 +108,213 @@ def removeTapIn_oneColumn(columns,filename):
     # df.to_table('test.txt', sep=':!:')
     df1=pd.read_csv(path+'/new-'+old_name.split('.')[0]+'.csv', sep=',',index_col=0)
     print(df1.head(15),"  len=",len(df1))
+    return path+'/new-'+old_name.split('.')[0]+'.csv'
+
+
+
+def cleanData():
+
+#--------------get all data from ali ods
+    # o = ODPS('LTAIVYhmNLQm0RPD', 'C7mhqOapX1iUSCYwis3lrZFN16nX5x', 'WS_BigData',
+    #             endpoint='http://service.cn.maxcompute.aliyun.com/api')
+    # tables=[
+    #         'ods_app_ai_content_content_news_all_dt',
+    #         'ods_app_ai_aiid_account_all_dt',
+    #         'ods_app_ai_content_content_topic_all_dt',
+    #         'dwd_user_app_browse_action_detail_cdc_dt',
+    #
+    #         'ods_app_ai_content_content_news_comment_all_dt',
+    #         'ods_app_ai_content_content_news_comment_liked_all_dt',
+    #         'ods_app_ai_content_content_news_liked_all_dt',
+    #         'ods_app_ai_content_content_topic_comment_all_dt',
+    #         'ods_app_ai_content_content_topic_comment_liked_all_dt',
+    #         'ods_app_ai_content_content_topic_discuss_all_dt',
+    #         'ods_app_ai_content_content_topic_discuss_comment_all_dt',
+    #         'ods_app_ai_content_content_topic_discuss_liked_all_dt',
+    #         'ods_app_ai_content_content_topic_liked_all_dt',
+    #         'ods_app_ai_content_content_topic_vote_all_dt',
+    #         'ods_app_ai_content_content_topic_vote_question_all_dt',
+    #         'ods_app_ai_content_content_topic_vote_option_all_dt',
+    #         'ods_app_ai_content_content_topic_vote_option_user_all_dt'
+    #         ]
+    # for table in tables:
+    #     pre_time=time.time()
+    #     print(table)
+    #     table_data = o.get_table(table).to_df().to_pandas()
+    #     print("connect ",table," successfully  cost",time.time()-pre_time)
+    #     pre_time=time.time()
+    #     table_data.to_csv(table+'.csv')
+    #     print("save ",table," successfully  cost",time.time()-pre_time)
+
+
+
+#--------------just save a single partition
+    # tables=[
+    #         'ods_app_ai_content_content_news_all_dt',
+    #         'ods_app_ai_aiid_account_all_dt',
+    #         'ods_app_ai_content_content_topic_all_dt',
+    #         # 'dwd_user_app_browse_action_detail_cdc_dt',
+    #
+    #         'ods_app_ai_content_content_news_comment_all_dt',
+    #         'ods_app_ai_content_content_news_comment_liked_all_dt',
+    #         'ods_app_ai_content_content_news_liked_all_dt',
+    #         'ods_app_ai_content_content_topic_comment_all_dt',
+    #         'ods_app_ai_content_content_topic_comment_liked_all_dt',
+    #         'ods_app_ai_content_content_topic_discuss_all_dt',
+    #         'ods_app_ai_content_content_topic_discuss_comment_all_dt',
+    #         'ods_app_ai_content_content_topic_discuss_liked_all_dt',
+    #         'ods_app_ai_content_content_topic_liked_all_dt',
+    #         'ods_app_ai_content_content_topic_vote_all_dt',
+    #         'ods_app_ai_content_content_topic_vote_question_all_dt',
+    #         'ods_app_ai_content_content_topic_vote_option_all_dt',
+    #         'ods_app_ai_content_content_topic_vote_option_user_all_dt'
+    #         ]
+    # for table in tables:
+    #     pre_time=time.time()
+    #     print(table+'.csv')
+    #     table_data = pd.read_csv('data/d/'+table+'.csv',index_col=0,dtype=str)
+    #     print("read ",table,"   cost",time.time()-pre_time)
+    #     pre_time=time.time()
+    #     table_data[table_data['pt'] =='20190717'].to_csv('ods/pt20190717'+table+'.csv')
+    #
+    #     # table_data[table_data['pt'] ==20190717].to_csv('ods/pt20190717'+table+'.csv')
+    #     print("save pt20190717-",table," successfully  cost",time.time()-pre_time)
+
+#--------------cleaning account table
+    accountdf=pd.read_csv('ods/pt20190717ods_app_ai_aiid_account_all_dt.csv')#v,index_col=0不能制定index，否这无法增加列
+    accountdf.dropna(axis=0,subset = ["id"])   # 丢弃‘userid’这两列中有缺失值的行
+    print(accountdf.columns)
+    print(accountdf.describe())
+    print(accountdf.isnull().any()) #which column is null
+    accountdf['nickname'][accountdf['nickname'].isnull()]=0
+    accountdf['nickname'][accountdf['nickname'].isnull()!=True]=1
+    accountdf['name'][accountdf['name'].isnull()!=True]=1
+    accountdf['name'][accountdf['name'].isnull()]=0
+    accountdf['sex'][accountdf['sex'].isnull()!=True]=1
+    accountdf['sex'][accountdf['sex'].isnull()]=0
+    accountdf=decompose_time('reg_time',accountdf)
+    accountdf['id_card'][accountdf['id_card'].isnull()!=True]=1
+    accountdf['id_card'][accountdf['id_card'].isnull()]=0
+    accountdf['head_url'][accountdf['head_url'].isnull()!=True]=1
+    accountdf['head_url'][accountdf['head_url'].isnull()]=0
+    accountdf['owner_type'][accountdf['owner_type'].isnull()!=True]=1
+    accountdf['owner_type'][accountdf['owner_type'].isnull()]=0
+    accountdf['age']=birthday_to_age(accountdf['birthday'])
+    accountdf['region'][accountdf['region'].isnull()]='0'
+    accountdf['region']=category_to_number(accountdf.region.values,'region')
+    def p(x):
+        print("column:",x)
+        print("is not null: ",accountdf[x][accountdf[x].isnull()!=True].to_list())
+        print("sum=",sum(accountdf[x][accountdf[x].isnull()!=True].to_list()))
+        print("count(owner_type)=",len(accountdf[x][accountdf[x].isnull()!=True].to_list()))
+        print("min=",min(accountdf[x][accountdf[x].isnull()!=True].to_list()))
+        print("max=",max(accountdf[x][accountdf[x].isnull()!=True].to_list()))
+    # p('region')
+    accountdf['integral'].fillna(0,inplace=True)
+    accountdf['integral']=accountdf['integral'].apply(lambda x:0 if x<0 else x )
+    # p('integral')
+    accountdf['is_big_v'].fillna(0,inplace=True)
+    # p('is_big_v')
+    accountdf['is_first_login'].fillna(0,inplace=True)
+    accountdf['is_first_login']=accountdf['is_first_login'].astype('int')
+    accountdf['autograph'][accountdf['autograph'].isnull()!=True]=1
+    accountdf['autograph'][accountdf['autograph'].isnull()]=0
+    # p('autograph')
+    accountdf['user_type'][accountdf['user_type'].isnull()!=True]=1
+    accountdf['user_type'][accountdf['user_type'].isnull()]=0
+    accountdf['event'][accountdf['event'].isnull()!=True]=1
+    accountdf['event'][accountdf['event'].isnull()]=0
+    accountdf['agreement_version'][accountdf['agreement_version'].isnull()!=True]=1
+    accountdf['agreement_version'][accountdf['agreement_version'].isnull()]=0
+    accountdf['big_region'][accountdf['big_region'].isnull()!=True]=1
+    accountdf['big_region'][accountdf['big_region'].isnull()]=0
+    # p('big_region')# value is empty
+    towrite=accountdf.loc[:,['id','nickname','name','sex','reg_time_year','reg_time_month','reg_time_week','reg_time_day',
+                     'reg_time_timestamp','id_card','head_url','owner_type','age','region','integral','is_big_v',
+                     'is_first_login','autograph','user_type','event','agreement_version','big_region']]
+
+    towrite.dropna(axis=0, how='any', inplace=True)
+    towrite.to_csv("ods/clean_sql_account.csv")
+# accountdf['d_type'][accountdf['d_type'].isnull()]=0
+    # accountdf['d_type'][accountdf['d_type'].isnull()!=True]=1
+    # accountdf['device_token'][accountdf['device_token'].isnull()]=0
+    # accountdf['device_token'][accountdf['device_token'].isnull()!=True]=1
+
+    # accountdf['license_time'][accountdf['license_time'].isnull()]=0
+    # accountdf['license_time'][accountdf['license_time'].isnull()!=True]=1
+  # p('is_first_login')
+    # # accountdf['address'][accountdf['address'].isnull()]=0
+    # # accountdf['address'][accountdf['address'].isnull()!=True]=1
+ # p('user_type')
+    # accountdf['empirical'][accountdf['empirical'].isnull()!=True]=1
+    # accountdf['empirical'][accountdf['empirical'].isnull()]=0
+    # p('empirical')# value is empty
+ # p('event')
+    # accountdf['company'][accountdf['company'].isnull()!=True]=1
+    # accountdf['company'][accountdf['company'].isnull()]=0
+    # p('company')# value is empty
+    # accountdf['drive_license'][accountdf['drive_license'].isnull()!=True]=1
+    # accountdf['drive_license'][accountdf['drive_license'].isnull()]=0
+    # p('drive_license')# value is empty
+    # accountdf['security_state'][accountdf['security_state'].isnull()!=True]=1
+    # accountdf['security_state'][accountdf['security_state'].isnull()]=0
+    # p('agreement_version')
+    # accountdf['email'][accountdf['email'].isnull()!=True]=1
+    # accountdf['email'][accountdf['email'].isnull()]=0
+    # p('email')# value is empty
+
+#--------------cleaning news table
+# 'id', 'creator_id', 'created_time', 'updator_id',
+#        'updated_time', 'delete_flag', 'news_title', 'news_subtitle',
+#        'news_source', 'news_summary', 'img_url', 'liked_num', 'clap_num',
+#        'recommend_flag', 'sort_no', 'publish_flag', 'news_detail',
+#        'comment_num', 'read_num', 'news_type', 'follow_num', 'share_num',
+#        'status', 'author', 'publish_time', 'video_url', 'pt'
+    newdf=pd.read_csv('ods/pt20190717ods_app_ai_content_content_news_all_dt.csv')#v,index_col=0不能制定index，否这无法增加列
+    newdf.dropna(axis=0,subset = ["id"])   # 丢弃‘userid’这两列中有缺失值的行
+    print(accountdf.columns)
+    print(accountdf.describe())
+    print(accountdf.isnull().any()) #which column is null
+
+    count=newdf['id'].value_counts()
+    if count.values.sum() == len(count):
+        print("No duplicated data in the frame， length=",len(count))
+    else:
+        print("you need to go back for cleaning data ")
+    print(newdf.isnull().any()) #which column is null
+    print(newdf.isnull().any()) #which column is null
+    newdf['creator_id'].fillna(0,inplace=True)
+    newdf = decompose_time('updated_time',newdf)
+    newdf['news_title']=newdf['news_title'].apply(lambda x:1 if isinstance(x,str) else 0)
+    newdf['news_subtitle']=newdf['news_subtitle'].apply(lambda x:1 if isinstance(x,str) else 0)
+    # print(newdf.isnull().any()) #判断那一列有空
+    def removeItems():
+        flags =newdf['delete_flag'].tolist()
+        removeIndexs=[]
+        for index, flag in enumerate(flags):
+            if flag == 1:
+                removeIndexs.append(index)
+        # print("delete:",removeIndexs[:-1])
+
+        flags1 =newdf['publish_flag'].tolist()
+        for index1, flag1 in enumerate(flags1):
+            if flag1 == 0:
+                # print("unpublish index=",index1)
+                removeIndexs.append(index1)
+        print("remove news:",removeIndexs[:-1])
+        newdf.drop(newdf.index[removeIndexs],inplace=True)
+
+    removeItems()
+
+    newdf['newsid']=newdf['id']
+    df_toWrite=newdf.loc[:,['creator_id','news_title','news_subtitle',
+                            'updated_year','updated_month','updated_day',
+                            'updated_timestamp','newsid']]
+    df_toWrite.dropna(axis=0, how='any', inplace=True)
+    df_toWrite.to_csv("ods/clean_sql_account.csv")
+
+#--------------cleaning news table
+
 
 
 #建立单个文件的excel转换成csv函数,file 是excel文件名，to_file 是csv文件名。
@@ -68,13 +330,33 @@ def read_path(path):
 
 def category_to_number(x,key):
         listedArray = list(x)
+        for index,i in enumerate(x):
+            if isinstance(i,str) !=True:
+                listedArray[index]='0'
         dic={}
-        for index,item in enumerate(np.unique(x)):
+        for index,item in enumerate(np.unique(listedArray)):
             dic[item]=index
         for st_index, i in  enumerate(listedArray):
             listedArray[st_index]=dic[i]
         return DataFrame({key:listedArray})
 
+def birthday_to_age(x):
+        listedArray = list(x)
+        now_year=dt.datetime.today().year #当前的年份
+        for index,item in enumerate(listedArray):
+            # print("out item:",item)
+            # print("out item: type=",type(item))
+            if isinstance(item,float):
+                # print("inner ",item)
+                if math.isnan(item):
+                    # print("give it to 0")
+                    listedArray[index]=0 #could be improved by mean()
+            else:
+                # print("inner item:",item)
+                # print("inner item: type=",type(item))
+                listedArray[index]=now_year-datetime.datetime.strptime(item,"%Y-%m-%d %H:%M:%S").year
+
+        return pd.Series(listedArray)
 
 def category_to_number_onNewColumn(x,column):
         listedArray = list(x)
@@ -91,9 +373,6 @@ def string_toDatetime(st):
     return datetime.datetime.strptime(st, "%Y-%m-%d %H:%M:%S")
 def string_toTimestamp(st):
     return time.mktime(time.strptime(st, "%Y-%m-%d %H:%M:%S"))
-
-
-
 
 
 def decode_time(newdf,column):
@@ -183,7 +462,7 @@ def playAccountTable():
     # newdf['region']=newdf['region'].apply(lambda x:0 if not isinstance(x,str) else x)"数字也是字符串，不好处理"
     newdf['region'].fillna('0',inplace=True)
     newdf['region']=newdf['region'].replace({'\\N': '0'})
-    newdf['region']=category_to_number(newdf.region.values,'region')
+    newdf['region']=category_to_number(newdf.region,'region')
     # # newdf['region']=newdf['region'].apply(lambda x:1 if isinstance(x,str) else x)
     newdf['autograph'].fillna(0,inplace=True)
     newdf['autograph']=newdf['autograph'].replace({'\\N': 0})
@@ -200,6 +479,9 @@ def playAccountTable():
     newdf['is_first_login']=newdf['is_first_login'].astype('int')
 
     # print(newdf.isnull().any()) #判断那一列有空
+    newdf.loc[:,['creator_id','news_title','news_subtitle',
+                            'updated_year','updated_month','updated_day',
+                            'updated_timestamp','newsID']]
     df_toWrite=newdf.loc[:,['id','nickname','name','sex','head_url','region','autograph','integral','is_big_v','is_first_login']]
     df_toWrite.dropna(axis=0, how='any', inplace=True)
     df_toWrite.to_csv("data/clean_account.csv")
@@ -259,7 +541,9 @@ def playNewsTable():
 
 
     newdf['newsID']=newdf['id']
-    df_toWrite=newdf.loc[:,['creator_id','news_title','news_subtitle','updated_year','updated_month','updated_day','updated_timestamp','newsID']]
+    df_toWrite=newdf.loc[:,['creator_id','news_title','news_subtitle',
+                            'updated_year','updated_month','updated_day',
+                            'updated_timestamp','newsID']]
     df_toWrite.dropna(axis=0, how='any', inplace=True)
     df_toWrite.to_csv("data/clean_news.csv")
 
@@ -398,8 +682,14 @@ def main():
     # playTopicNewsTable()
     # playViewedNewsTable()
     # buildTrainingData()
-    removeTapIn_oneColumn(['id', 'news_title', 'news_subtitle', 'news_detail', 'liked_num',
-           'clap_num', 'recommend_flag', 'comment_num', 'read_num', 'follow_num',
-           'share_num'],'data/news_title_comment_like.txt',)
+
+    # removeTapIn_oneColumn(['id', 'news_title', 'news_subtitle', 'news_detail', 'liked_num',
+    #        'clap_num', 'recommend_flag', 'comment_num', 'read_num', 'follow_num',
+    #        'share_num'],'data/news_title_comment_like.txt',)
+    # file= removeTapIn_oneColumn('data/temp_user_news.txt')
+    cleanData()
+    # justSaveNewsDetail()
+
+
 if __name__ == '__main__':
     main()
