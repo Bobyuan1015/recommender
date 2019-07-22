@@ -231,7 +231,7 @@ class UserBasedCF(object):
 
 
 if __name__ == '__main__':
-    ratingfile = 'lfm_postive_data.csv'
+    ratingfile = 'data/ods_sql_lfm_postive_data.csv'
     # ratingfile = 'data/ratings.dat'
     usercf = UserBasedCF()
     usercf.generate_dataset(ratingfile)

@@ -15,7 +15,7 @@ class Corpus:
 
     @classmethod
     def pre_process(cls):
-        file_path = 'lfm_postive_data.csv'
+        file_path = 'data/ods_sql_lfm_postive_data.csv'
         cls.frame = pd.read_csv(file_path)
 
         cls.user_ids = set(cls.frame['useridReindex'].values)
