@@ -1,9 +1,21 @@
 #-*- coding: utf-8 -*-
 '''
 Created on 2019-07-13
-To do a cf model for recommendation system
+To do feature building for recommendation system
 @author: yuanfang
 '''
+
+import pandas as pd
+import numpy as np
+from pandas import DataFrame
+import time
+import datetime
+from sklearn.utils import shuffle
+import os
+import datetime as dt
+import math
+
+
 import sys
 import random
 import math
@@ -17,7 +29,7 @@ from collections import defaultdict
 random.seed(0)
 
 
-class UserBasedCF(object):
+class Cf_model(object):
     ''' TopN recommendation - User Based Collaborative Filtering '''
 
     # 构造函数，用来初始化
@@ -32,7 +44,7 @@ class UserBasedCF(object):
 
         self.user_sim_mat = {}
         self.users=[]
-        self.items=[]
+        self.items={}
         self.article_popular = {}
         self.article_count = 0
         # sys.stderr 是用来重定向标准错误信息的
@@ -66,7 +78,8 @@ class UserBasedCF(object):
         testset_len = 0
         df=pd.read_csv(filename)
         self.users=list(set(df.userid.to_list()))
-        self.items=list(set(df.newsid.to_list()))
+
+#         self.items=list(set(df.newsid.to_list()))
 
 
         for i in df.index:
@@ -76,6 +89,10 @@ class UserBasedCF(object):
             user=df.userid[i]
             article=df.newsid[i]
             self.trainset.setdefault(user, {})
+#             print(i,"  ",df.newsid[i]," type=",df.news_type[i])
+            self.items[df.newsid[i]]=df.news_type[i]
+#             print("  self.items[df.newsid[i]]",self.items[df.newsid[i]]," type=",df.news_type[i])
+
             # 以下省略格式如下，集同一个用户id 会产生一个字典，且值为他评分过的所有电影
             #{'1': {'914': 3, '3408': 4, '150': 5, '1': 5}, '2': {'1357': 5}}
             self.trainset[user][article] =0# int(rating)
@@ -94,7 +111,7 @@ class UserBasedCF(object):
 #                 testset_len += 1
         print("index",df.index)
         print("len(users)",len(self.users),' ',self.users[-10:-1])
-        print("len(items)",len(self.items),' ',self.items[-10:-1])
+#         print("len(items)",len(self.items),' ',self.items[-10:-1])
         print("len(trainset)",len(self.trainset),' ',list(self.trainset)[-10:-1])
         print('')
         # 输出切分训练集成功
@@ -103,12 +120,17 @@ class UserBasedCF(object):
         print ('训练集数目 = %s' % trainset_len, file=sys.stderr)
         # 输出测试集比例
         print ('测试集数目 = %s' % testset_len, file=sys.stderr)
+
+
     # 建立物品-用户 倒排表
     def calc_user_sim(self):
         ''' calculate user similarity matrix '''
         # build inverse table for item-users
         # key=articleID, value=list of userIDs who have seen this article
-        print ('构建物品-用户倒排表中，请等待......', file=sys.stderr)
+
+        if os.path.exists('cf.model'):
+            print ('cf.model exist, no need to train ......', file=sys.stderr)
+            return
         article2users = dict()
 
         # Python 字典(Dictionary) items() 函数以列表返回可遍历的(键, 值) 元组数组
@@ -244,26 +266,3 @@ class UserBasedCF(object):
 
         print ('precision=%.4f\trecall=%.4f\tcoverage=%.4f\tpopularity=%.4f' %
                (precision, recall, coverage, popularity), file=sys.stderr)
-
-
-
-ratingfile = 'data/ods_sql_lfm_postive_data.csv'
-usercf = UserBasedCF()
-usercf.generate_dataset(ratingfile)
-# if not os.path.exists('cf.model'):
-usercf.calc_user_sim()
-# usercf.calc_user_sim()
-
-print(' usercf.users, len=',len(usercf.users),' ', usercf.users[:10])
-print(' usercf.items,len=',len(usercf.items),' ',usercf.items[:10])
-# for user in usercf.users:
-#     a = usercf.recommend(user)
-
-# print(a)
-# '''
-# 以下为用户id为100的用户推荐的资讯
-# a = usercf.recommend("100")
-# cost time: 2.384185791015625e-05
-# [(186, 0.5), (128, 0.5), (108, 0.5), (117, 0.4472135954999579), (140, 0.4472135954999579), (104, 0.4472135954999579), (106, 0.4472135954999579)]
-# '''
-# usercf.evaluate()
